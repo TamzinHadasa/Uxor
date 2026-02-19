@@ -1,7 +1,7 @@
 import enum
 from enum import Enum
 import re
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 
 class UxorError(Exception): pass
@@ -35,7 +35,7 @@ class NumberVariantTable(list[NumberVariantGroup]):
 
 
 class Uxor:
-    default_replacements = {
+    default_replacements = {  # @TODO: All UCSUR codepoints.
     "te": "\u300C", #  「 
     "to": "\u300D", #  」 
     "a": "\U000F1900",
@@ -194,34 +194,39 @@ class Uxor:
     def __init__(self,
                  *,
                  replacements: dict[str, str] | None = None,
-                 separation_pattern: str | None = r"\s+",
-                 separator: str = " ",
-                 ignore_pattern: str | None = None,
-                 put_space_after_pattern: str | None = None,
-                 space_to_add: str  = "\u200B",
                  number_variant_style: NumberVariantStyle = NumberVariantStyle.NUMERAL,
-                 number_joiner: str = ""):
-        self.sequences = replacements or self.default_replacements
-        self.separation_pattern = (re.compile(separation_pattern)
-                                   if separation_pattern else None)
-        self.separator = separator
-        self.ignore_pattern = (re.compile(ignore_pattern)
-                               if ignore_pattern else None)
-        self.put_space_after_pattern = (re.compile(put_space_after_pattern)
-                                        if put_space_after_pattern else None)
-        self.space_to_add = space_to_add
+                 variant_joiner: str = "",
+                 before_find: str = "",
+                 before_replace: str = "",
+                 separation_find: str = r"\s+",
+                 separation_replace: str = " ",
+                 after_find: str = "",
+                 after_replace: str  = ""):
+        self.__name__ = self.__class__.__name__  # Needed for LibreOffice.
+        self.replacements = replacements or self.default_replacements
         self.number_variant_style = number_variant_style
-        self.number_joiner = number_joiner
+        self.number_joiner = variant_joiner
+        self.prepare: Callable[[str], str] = (
+            lambda x: re.sub(before_find, before_replace, x)
+            if before_find else x
+        )
+        self.separator = separation_replace
+        self.separate: Callable[[str], str] = (
+            lambda x: re.sub(separation_find, separation_replace, x)
+            if separation_find else x
+        )
+        self.tidy: Callable[[str], str] = (
+            lambda x: re.sub(after_find, after_replace, x)
+            if after_find else x
+        )
 
     def sanitize(self, input_: str) -> str:
         stripped = input_.strip()
-        cleaned = (self.ignore_pattern.sub("", stripped)
-                   if self.ignore_pattern else stripped)
-        sanitized = (self.separation_pattern.sub("", cleaned)
-                     if self.separation_pattern else cleaned)
-        return sanitized
+        prepared = self.prepare(stripped)
+        separated = self.separate(prepared)
+        return separated
     
-    def convert(self, input_: str) -> str:
+    def __call__(self, input_: str) -> str:
         sanitized = self.sanitize(input_)
         separated = sanitized.split(self.separator)
         sequences = [self.decode_seq(seq) for seq in separated]
@@ -250,10 +255,10 @@ class Uxor:
     
     def get_word(self, seq: str) -> str:
         try:
-            return self.sequences[seq]
+            return self.replacements[seq]
         except KeyError as e:
             if len(seq) == 1:
-                if seq in self.sequences.values():
+                if seq in self.replacements.values():
                     return seq
                 try:
                     variant = self.number_variants[seq]
@@ -266,6 +271,5 @@ class Uxor:
     
     def space(self, sequences: list[str]) -> str:
         joined = "".join(sequences)
-        spaced = (self.put_space_after_pattern.sub(self.space_to_add, joined)
-                  if self.put_space_after_pattern else joined)
-        return spaced
+        tidied = self.tidy(joined)
+        return tidied
