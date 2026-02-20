@@ -128,7 +128,7 @@ Then:
 * `File > Import BASIC`
 * Select [`macros/LibreOffice/o_ocsur.bas`](macros/LibreOffice/o_ocsur.bas) from
   this directory.  (Alternatively, you can just copy-paste its contents.)
-* In line 9, if you do not want to be using the default `Uxor` instance, change
+* In line 11, if you do not want to be using the default `Uxor` instance, change
   the word after the dollar sign to the name of your preferred instance.
 * `File > Save`
 * `Tools > Organize Macros > Basic`
@@ -150,7 +150,7 @@ This approach dynamically imports the version of Uxor you have copied/cloned.
 Changes to that version may sometimes not take immediate effect in LibreOffice;
 try restarting the program if so.
 
-You can change freely between multiple `Uxor` instances by modifying line 9 of
+You can change freely between multiple `Uxor` instances by modifying line 11 of
 the macro (without needing to restart), or can even make separate macros with
 different keybinds for different instances.
 

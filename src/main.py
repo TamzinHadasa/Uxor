@@ -1,3 +1,8 @@
+__author__ = "Tamzin Hadasa Kelly"
+__email__ = "coding@tamz.in"
+__copyright__ = "Copyright 2026 Tamzin Hadasa Kelly"
+__license__ = "The MIT License"
+__version__ = "2.0.0"
 import sys
 
 # This loads the default Uxor implementation.  To use a different version,

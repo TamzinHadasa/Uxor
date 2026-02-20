@@ -1,4 +1,5 @@
 REM  *****  BASIC  *****
+REM See readme.md for instructions on adding this to LibreOffice.
 Option Explicit
 
 Sub Main
@@ -6,6 +7,7 @@ Dim sp As Object ' com.sun.star.script.provider.XScriptProvider compatible
 Dim uri As String
 dim getUcsur as object
 sp = ThisComponent.getScriptProvider()
+REM Change the bit between $ and ? to use a different Uxor object from config.py!
 uri = "vnd.sun.star.script:o_ucsur.py$default?language=Python&location=share"
 set getUcsur = sp.getScript(uri)
 REM ----

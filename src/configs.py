@@ -1,4 +1,5 @@
-from uxor import NumberVariantStyle, Uxor  # Don't change this line!
+# Don't change this line!
+from uxor import Uxor
 
 default = Uxor()  # Don't change this line
 
@@ -12,14 +13,22 @@ pankantan = Uxor(
     # If you want to completely overwrite the default replacements, you should
     # set:
     #     replacements={ ...
-    replacements=Uxor.default_replacements | {
+    add_replacements={
         "nn": " ",
-        "mm": "  "
+        "mm": "  ",
+        ("\uFE00", "\u2193", "v"): "1",
+        ("\uFE01", "\u2192", ">"): "2",
+        ("\uFE02", "\u2190", "<"): "3",
+        ("\uFE03", "\u2191", "^"): "4"
     },
+    remove_keys=["\uFE04", "\u2196", "<^", "^<",
+                 "\uFE06", "\u2198", "v>", ">v",
+                 "\uFE05", "\u2197", ">^", "^>",
+                 "\uFE07", "\u2199", "<v", "v<"],
     # Replaces all zero-width non-joiners with the default before_replace value,
     # which is nothing.  (I.e, it removes them.)  If we wanted to replace them
     # with something else, we'd also add `before_replace`.
-    before_find=r"[\u200C]",
+    before_find=r"\u200C",
     # Replaces any instance of U+F1909 (e) or U+F1927 (li), plus any instance of
     # U+F1921 (la) that doesn't follow a space, with themself plus U+200B (zero-
     # width space) (i.e., it adds U+200B after the character), unless there are
@@ -29,8 +38,6 @@ pankantan = Uxor(
     after_replace="\\1\u200B",
     # These next two are the default values, so not actually necessary, but 
     # included here for illustration.
-    number_variant_style=NumberVariantStyle.NUMERAL,  # `ni3`, for instance.
-    variant_joiner=""  # No zero-width joiner or anything like that in `ni3`.
 )
 
 # Example constructor for a new Uxor object.  Remove any lines that you don't
@@ -38,14 +45,9 @@ pankantan = Uxor(
 my_uxor = Uxor (
     # Remove `Uxor.default_replacements | ` if you want to overwrite the entire
     # replacement table.
-    replacements=Uxor.default_replacements | {
+    add_replacements=Uxor.default_replacements | {
         # Put values here like: "word": "replacement",
     },
-    # NumberVariantStyle.NUMERAL, NumberVariantStyle.VARIATION_SELECTOR, 
-    # NumberVariantStyle.UNICODE_ARROW, or NumberVariantStyle.ASCII_ARROW
-    number_variant_style=NumberVariantStyle.NUMERAL,
-    # Some string to go between a glyph and the variant symbol after it
-    variant_joiner="",
     # These next bits involve regular expressions (regexes).  See <https://www.regular-expressions.info/>
     # for information and <https://regex101.com/> for troubleshooting.
     #
