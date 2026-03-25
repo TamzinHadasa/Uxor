@@ -229,7 +229,10 @@ class Uxor:
     def __call__(self, input_: str) -> str:
         sanitized = self.sanitize(input_)
         separated = sanitized.split(self.separator)
-        sequences = [self.decode_seq(seq) for seq in separated]
+        try:
+            sequences = [self.decode_seq(seq) for seq in separated]
+        except UxorError as e:
+            return f"ERROR. Invalid sequence {e.args[0]}\n> "
         spaced = self.space(sequences)
         return spaced
 
@@ -237,14 +240,14 @@ class Uxor:
         words = ""
         try:
             words = self.get_word(seq)
-        except ValueError:
+        except UxorError:
             if len(seq) == 1:
                 raise
             else:
-                for idx in range(len(seq))[::-1]:
+                for idx in range(len(seq) + 1)[::-1]:
                     try:
                         words += self.get_word(seq[:idx])
-                    except ValueError:
+                    except UxorError:
                         continue
                     else:
                         words += self.decode_seq(seq[idx:])
@@ -267,7 +270,7 @@ class Uxor:
                 else:
                     return (self.number_joiner
                             + getattr(variant, self.number_variant_style.name))
-            raise ValueError(seq) from e
+            raise UxorError(seq) from e
     
     def space(self, sequences: list[str]) -> str:
         joined = "".join(sequences)
