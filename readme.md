@@ -126,15 +126,15 @@ Then:
 * Open LibreOffice
 * `Tools > Macros > Edit Macros`
 * `File > Import BASIC`
-* Select [`macros/LibreOffice/o_ocsur.bas`](macros/LibreOffice/o_ocsur.bas) from
-  this directory.  (Alternatively, you can just copy-paste its contents.)
+* Copy the source code of [`macros/LibreOffice/o_ocsur.bas`](macros/LibreOffice/o_ocsur.bas) 
+  into a the macro code editor.  (This is faster and less error-prone than
+  using the import dialog.)
 * In line 11, if you do not want to be using the default `Uxor` instance, change
   the word after the dollar sign to the name of your preferred instance.
 * `File > Save`
 * `Tools > Organize Macros > Basic`
 * [Optional] Give the macro a descriptive name:
-  * `My Macros > Standard > Module1` (or whatever name LO has 
-    assigned)
+  * `My Macros > Standard > Module1` (or whatever name LO has assigned)
   * `Organizer` button on right side
   * Double click the macro's name; type a new name; press `enter`
   * Close the frontmost window
