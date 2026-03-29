@@ -1,6 +1,6 @@
 from uxor import NumberVariantStyle, Uxor  # Don't change this line!
 
-default = Uxor()  # Don't change this line
+default = Uxor()  # Don't change this line!
 
 # You can now define Uxor objects with different configs below.  For instance,
 # here is something from a working project of mine.
@@ -14,7 +14,9 @@ pankantan = Uxor(
     #     replacements={ ...
     replacements=Uxor.default_replacements | {
         "nn": " ",
-        "mm": "  "
+        "mm": "  ",
+        "te": "\U000F19B4",
+        "to": "\U000F19B5"
     },
     # Replaces all zero-width non-joiners with the default before_replace value,
     # which is nothing.  (I.e, it removes them.)  If we wanted to replace them
@@ -25,7 +27,7 @@ pankantan = Uxor(
     # width space) (i.e., it adds U+200B after the character), unless there are
     # no U+F1990 (cartouche start) before the next U+F1991 (cartouche end) 
     # (i.e., we are mid-cartouche).
-    after_find=r"([\U000F1909\U000F1927]|(?<!\s)\U000F1921)(?![^\U000F1990]*\U000F1991)",
+    after_find=r"([\U000F1909\U000F190A\U000F1927\U000F199C]|(?<!\s)\U000F1921)(?![^\U000F1990]*\U000F1991)",
     after_replace="\\1\u200B",
     # These next two are the default values, so not actually necessary, but 
     # included here for illustration.
