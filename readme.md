@@ -113,9 +113,9 @@ highlighted.
 ### LibreOffice macro
 
 I have created a fully functional macro that does just this in LibreOffice, at
-[`macros/LibreOffice/o_ocsur.bas`](macros/LibreOffice/o_ocsur.bas).
+[`macros/LibreOffice/o_ocsur.bas`](src/macros/LibreOffice/o_ocsur.bas).
 
-To enable it, you must first add [`macros/LibreOffice/import_o_ocsur.py`](macros/LibreOffice/import_o_ocsur.py)
+To enable it, you must first add [`macros/LibreOffice/import_o_ocsur.py`](src/macros/LibreOffice/import_o_ocsur.py)
 to the `share` directory of your LibreOffice installation.  On Linux this will
 likely be `/lib/libreoffice/share/Scripts/python`. So from Uxor's directory you
 can run:
@@ -126,7 +126,7 @@ Then:
 * Open LibreOffice
 * `Tools > Macros > Edit Macros`
 * `File > Import BASIC`
-* Copy the source code of [`macros/LibreOffice/o_ocsur.bas`](macros/LibreOffice/o_ocsur.bas) 
+* Copy the source code of [`macros/LibreOffice/o_ocsur.bas`](src/macros/LibreOffice/o_ocsur.bas) 
   into a the macro code editor.  (This is faster and less error-prone than
   using the import dialog.)
 * In line 11, if you do not want to be using the default `Uxor` instance, change
@@ -155,16 +155,17 @@ the macro (without needing to restart), or can even make separate macros with
 different keybinds for different instances.
 
 The LibreOffice script does not pay attention to what `Uxor` instance is
-currently selected in [`o_ucsur.py`](o_ucsur.py).
+currently selected in [`main.py`](src/main.py).
 
 ## Contributing
 
 Pull requests welcome! In particular, if you create a macro for a new scripting
-platform, I will happily add it to the [`macros`](macros) directory.
+platform, I will happily add it to the [`macros`](src/macros) directory.
 
 ## Conclusion
 
 In addition to its silly backronym, and to sounding like the way I personally
-pronounce "UCSUR", "uxor" is Latin for "spouse", that it may serve as a faithful
-companion to you in your sitelen pona efforts. Accordingly, I dedicate it to the
-members of my polycule.
+pronounce "UCSUR", "uxor" is Latin for "spouse", that it may serve as a
+faithful companion to you in your sitelen pona efforts. Generalizing that
+translation to a more *pona* reckoning of relationships, I dedicate this 
+project *tawa olin mi Kelisen, tawa olin mi Apike, tawa olin mi Juli*.

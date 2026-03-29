@@ -1,10 +1,12 @@
-from collections.abc import Callable
 import re
 
 from data_classes import MultiKeyDict
 
+from data_classes import InvalidSequence
+
 
 AddReplacements = dict[str | tuple[str, ...], str]
+FindReplace = list[tuple[str, str]]
 
 
 class Uxor:
@@ -21,11 +23,11 @@ class Uxor:
         "anu": "\U000F1907",
         "awen": "\U000F1908",
         "e": "\U000F1909",
-        "en": "\U000F190a",
-        "esun": "\U000F190b",
-        "ijo": "\U000F190c",
-        "ike": "\U000F190d",
-        "ilo": "\U000F190e",
+        "en": "\U000F190A",
+        "esun": "\U000F190B",
+        "ijo": "\U000F190C",
+        "ike": "\U000F190D",
+        "ilo": "\U000F190E",
         "insa": "\U000F190F",
         "jaki": "\U000F1910",
         "jan": "\U000F1911",
@@ -37,11 +39,11 @@ class Uxor:
         "kasi": "\U000F1917",
         "ken": "\U000F1918",
         "kepeken": "\U000F1919",
-        "kili": "\U000F191a",
-        "kiwen": "\U000F191b",
-        "ko": "\U000F191c",
-        "kon": "\U000F191d",
-        "kule": "\U000F191e",
+        "kili": "\U000F191A",
+        "kiwen": "\U000F191B",
+        "ko": "\U000F191C",
+        "kon": "\U000F191D",
+        "kule": "\U000F191E",
         "kulupu": "\U000F191F",
         "kute": "\U000F1920",
         "la": "\U000F1921",
@@ -53,11 +55,11 @@ class Uxor:
         "li": "\U000F1927",
         "lili": "\U000F1928",
         "linja": "\U000F1929",
-        "lipu": "\U000F192a",
-        "loje": "\U000F192b",
-        "lon": "\U000F192c",
-        "luka": "\U000F192d",
-        "lukin": "\U000F192e",
+        "lipu": "\U000F192A",
+        "loje": "\U000F192B",
+        "lon": "\U000F192C",
+        "luka": "\U000F192D",
+        "lukin": "\U000F192E",
         "lupa": "\U000F192F",
         "ma": "\U000F1930",
         "mama": "\U000F1931",
@@ -69,11 +71,11 @@ class Uxor:
         "moli": "\U000F1937",
         "monsi": "\U000F1938",
         "mu": "\U000F1939",
-        "mun": "\U000F193a",
-        "musi": "\U000F193b",
-        "mute": "\U000F193c",
-        "nanpa": "\U000F193d",
-        "nasa": "\U000F193e",
+        "mun": "\U000F193A",
+        "musi": "\U000F193B",
+        "mute": "\U000F193C",
+        "nanpa": "\U000F193D",
+        "nasa": "\U000F193E",
         "nasin": "\U000F193F",
         "nena": "\U000F1940",
         "ni": "\U000F1941",
@@ -85,11 +87,11 @@ class Uxor:
         "open": "\U000F1947",
         "pakala": "\U000F1948",
         "pali": "\U000F1949",
-        "palisa": "\U000F194a",
-        "pan": "\U000F194b",
-        "pana": "\U000F194c",
-        "pi": "\U000F194d",
-        "pilin": "\U000F194e",
+        "palisa": "\U000F194A",
+        "pan": "\U000F194B",
+        "pana": "\U000F194C",
+        "pi": "\U000F194D",
+        "pilin": "\U000F194E",
         "pimeja": "\U000F194F",
         "pini": "\U000F1950",
         "pipi": "\U000F1951",
@@ -100,11 +102,11 @@ class Uxor:
         "seli": "\U000F1957",
         "selo": "\U000F1958",
         "seme": "\U000F1959",
-        "sewi": "\U000F195a",
-        "sijelo": "\U000F195b",
-        "sike": "\U000F195c",
-        "sin": "\U000F195d",
-        "sina": "\U000F195e",
+        "sewi": "\U000F195A",
+        "sijelo": "\U000F195B",
+        "sike": "\U000F195C",
+        "sin": "\U000F195D",
+        "sina": "\U000F195E",
         "sinpin": "\U000F195F",
         "sitelen": "\U000F1960",
         "sona": "\U000F1961",
@@ -116,11 +118,11 @@ class Uxor:
         "tan": "\U000F1967",
         "taso": "\U000F1968",
         "tawa": "\U000F1969",
-        "telo": "\U000F196a",
-        "tenpo": "\U000F196b",
-        "toki": "\U000F196c",
-        "tomo": "\U000F196d",
-        "tu": "\U000F196e",
+        "telo": "\U000F196A",
+        "tenpo": "\U000F196B",
+        "toki": "\U000F196C",
+        "tomo": "\U000F196D",
+        "tu": "\U000F196E",
         "unpa": "\U000F196F",
         "uta": "\U000F1970",
         "utala": "\U000F1971",
@@ -132,10 +134,10 @@ class Uxor:
         "wile": "\U000F1977",
         "namako": "\U000F1978",
         "kin": "\U000F1979",
-        "kipisi": "\U000F197b",
-        "leko": "\U000F197c",
-        "monsuta": "\U000F197d",
-        "tonsi": "\U000F197e",
+        "kipisi": "\U000F197B",
+        "leko": "\U000F197C",
+        "monsuta": "\U000F197D",
+        "tonsi": "\U000F197E",
         "jasima": "\U000F197F",
         "soko": "\U000F1981",
         "meso": "\U000F1982",
@@ -161,83 +163,77 @@ class Uxor:
         ("\uFE06", "\u2198", "v>", ">v"): "7",
         ("\uFE07", "\u2199", "<v", "v<"): "8"
     })
+
+    @staticmethod
+    def _multi_replace(text: str, regexes: FindReplace):
+        for find, replace in regexes:
+            text = re.sub(find, replace, text)
+            print(f"Replaced '{find}' with '{replace}'")
+        return text
+
     def __init__(self,
                  *,
                  add_replacements: AddReplacements | None = None,
                  remove_keys: list[str] | None = None,
-                 before_find: str = "",
-                 before_replace: str = "",
-                 separation_find: str = r"\s+",
-                 separation_replace: str = " ",
-                 after_find: str = "",
-                 after_replace: str  = ""
-                 ):
+                 before_find_replace: FindReplace | None = None,
+                 separator: str = " ",
+                 after_find_replace: FindReplace | None = None):
         self.__name__ = self.__class__.__name__  # Needed for LibreOffice.
-        add_replacements = (add_replacements
-                            if add_replacements is not None else {})
-        remove_keys = remove_keys if remove_keys is not None else []
+        add_replacements = add_replacements or {}
+        remove_keys = remove_keys or []
         self.replacements = self.default_replacements | add_replacements
         for k in self.replacements:
             if k in remove_keys:
                 del self.replacements[k]
-        self.prepare: Callable[[str], str] = (
-            lambda x: re.sub(before_find, before_replace, x)
-            if before_find else x
-        )
-        self.separator = separation_replace
-        self.separate: Callable[[str], str] = (
-            lambda x: re.sub(separation_find, separation_replace, x)
-            if separation_find else x
-        )
-        self.tidy: Callable[[str], str] = (
-            lambda x: re.sub(after_find, after_replace, x)
-            if after_find else x
-        )
-    
+        self._before_find_replace = before_find_replace or [(r"\s+", separator)]
+        self.separator = separator
+        self._after_find_replace = after_find_replace or [("", "")]
+
     # Having the object be callable makes LibreOffice happy.
     def __call__(self, input_: str) -> str:
-        sanitized = self.sanitize(input_)
+        sanitized = self._sanitize(input_)
         separated = sanitized.split(self.separator)
-        sequences = [self.decode_seq(seq) for seq in separated]
-        spaced = self.space(sequences)
-        return spaced
+        try:
+            sequences = [self._decode_seq(seq) for seq in separated]
+        except InvalidSequence as e:
+            return f"SITELEN IKE: {e.args[0]}\n> "
+        tidied = self._tidy(sequences)
+        return tidied
 
-    def sanitize(self, input_: str) -> str:
+    def _sanitize(self, input_: str) -> str:
         stripped = input_.strip()
-        prepared = self.prepare(stripped)
-        separated = self.separate(prepared)
-        return separated
+        sanitized = self._multi_replace(stripped, self._before_find_replace)
+        return sanitized
 
-    def decode_seq(self, seq: str) -> str:
+    def _decode_seq(self, seq: str) -> str:
         words = ""
         try:
-            words = self.get_word(seq)
-        except ValueError:
+            words = self._get_word(seq)
+        except InvalidSequence:
             if len(seq) == 1:
                 raise
-            else:
-                for idx in range(len(seq))[::-1]:
-                    try:
-                        words += self.get_word(seq[:idx])
-                    except ValueError:
-                        continue
-                    else:
-                        words += self.decode_seq(seq[idx:])
-                        break
+            for idx in range(len(seq))[::-1]:
+                try:
+                    words += self._get_word(seq[:idx])
+                except InvalidSequence:
+                    continue
                 else:
-                    raise
+                    words += self._decode_seq(seq[idx:])
+                    break
+            else:
+                raise
         return words
-    
-    def get_word(self, seq: str) -> str:
+
+    def _get_word(self, seq: str) -> str:
         try:
             return self.replacements[seq]
         except KeyError as e:
             if len(seq) == 1:
                 if seq in self.replacements.values():
                     return seq
-            raise ValueError(seq) from e
-    
-    def space(self, sequences: list[str]) -> str:
-        joined = "".join(sequences)
-        tidied = self.tidy(joined)
+            raise InvalidSequence(seq) from e
+
+    def _tidy(self, sequences: list[str]) -> str:
+        joined = self.separator.join(sequences)
+        tidied = self._multi_replace(joined, self._after_find_replace)
         return tidied

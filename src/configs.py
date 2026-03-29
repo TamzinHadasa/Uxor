@@ -18,53 +18,52 @@ pankantan = Uxor(
         "mm": "  ",
         "te": "\U000F19B4",
         "to": "\U000F19B5",
+        "..": "\U000F199C",
+        "::": "\U000F199D",
         ("\uFE00", "\u2193", "v"): "1",
         ("\uFE01", "\u2192", ">"): "2",
         ("\uFE02", "\u2190", "<"): "3",
-        ("\uFE03", "\u2191", "^"): "4"
+        ("\uFE03", "\u2191", "^"): "4",
+        "\u200C": ""  # Delete zero-width joiners.
     },
     remove_keys=["\uFE04", "\u2196", "<^", "^<",
                  "\uFE06", "\u2198", "v>", ">v",
                  "\uFE05", "\u2197", ">^", "^>",
                  "\uFE07", "\u2199", "<v", "v<"],
-    # Replaces all zero-width non-joiners with the default before_replace value,
-    # which is nothing.  (I.e, it removes them.)  If we wanted to replace them
-    # with something else, we'd also add `before_replace`.
-    before_find=r"\u200C",
     # Replaces any instance of U+F1909 (e) or U+F1927 (li), plus any instance of
     # U+F1921 (la) that doesn't follow a space, with themself plus U+200B (zero-
     # width space) (i.e., it adds U+200B after the character), unless there are
     # no U+F1990 (cartouche start) before the next U+F1991 (cartouche end) 
     # (i.e., we are mid-cartouche).
-    after_find=r"([\U000F1909\U000F190A\U000F1927\U000F199C]|(?<!\s)\U000F1921)(?![^\U000F1990]*\U000F1991)",
-    after_replace="\\1\u200B",
-    # These next two are the default values, so not actually necessary, but 
-    # included here for illustration.
+    after_find_replace=[(
+        r"([\U000F1909\U000F190A\U000F1927\U000F199C]|(?<!\s)\U000F1921)(?![^\U000F1990]*\U000F1991)",
+        "\\1\u200B"
+    )]
 )
 
 # Example constructor for a new Uxor object.  Remove any lines that you don't
 # change.
-my_uxor = Uxor (
-    # Remove `Uxor.default_replacements | ` if you want to overwrite the entire
-    # replacement table.
-    add_replacements=Uxor.default_replacements | {
-        # Put values here like: "word": "replacement",
-    },
-    # These next bits involve regular expressions (regexes).  See <https://www.regular-expressions.info/>
-    # for information and <https://regex101.com/> for troubleshooting.
-    #
-    # Before doing anything else to the input, find things matching this 
-    # regex...
-    before_find="",
-    # ... and replace them with this string:
-    before_replace="",
-    # Then find things matching this regex...
-    separation_find=r"\s+",
-    # ... and replace them with this, which will be used to break the input into
-    # words:
-    separation_replace=" ",
-    # After doing all replacements, find things matching this regex...
-    after_find="",
-    # ... and replace them with this:
-    after_replace=""
-)
+# my_uxor = Uxor (
+#     # Remove `Uxor.default_replacements | ` if you want to overwrite the entire
+#     # replacement table.
+#     add_replacements=Uxor.default_replacements | {
+#         # Put values here like: "word": "replacement",
+#     },
+#     # These next bits involve regular expressions (regexes).  See <https://www.regular-expressions.info/>
+#     # for information and <https://regex101.com/> for troubleshooting.
+#     #
+#     # Before doing anything else to the input, find things matching this 
+#     # regex...
+#     before_find="",
+#     # ... and replace them with this string:
+#     before_replace="",
+#     # Then find things matching this regex...
+#     separation_find=r"\s+",
+#     # ... and replace them with this, which will be used to break the input into
+#     # words:
+#     separation_replace=" ",
+#     # After doing all replacements, find things matching this regex...
+#     after_find="",
+#     # ... and replace them with this:
+#     after_replace=""
+# )

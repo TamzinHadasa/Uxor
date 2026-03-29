@@ -3,6 +3,7 @@ from typing import Any
 
 class UxorError(Exception): pass
 class ConfigError(UxorError): pass
+class InvalidSequence(UxorError, ValueError): pass
 
 class MultiKeyDict(dict[Any, Any]):
     """Dict that treats members of frozenset keys as keys themselves.
