@@ -4,6 +4,9 @@ import re
 from data_classes import MultiKeyDict
 
 
+AddReplacements = dict[str | tuple[str, ...], str]
+
+
 class Uxor:
     default_replacements = MultiKeyDict({  # @TODO: All UCSUR codepoints.
         ("te", "“"): "「",
@@ -160,15 +163,19 @@ class Uxor:
     })
     def __init__(self,
                  *,
-                 add_replacements: dict[str, str] | None = None,
+                 add_replacements: AddReplacements | None = None,
                  remove_keys: list[str] | None = None,
                  before_find: str = "",
                  before_replace: str = "",
                  separation_find: str = r"\s+",
                  separation_replace: str = " ",
                  after_find: str = "",
-                 after_replace: str  = ""):
+                 after_replace: str  = ""
+                 ):
         self.__name__ = self.__class__.__name__  # Needed for LibreOffice.
+        add_replacements = (add_replacements
+                            if add_replacements is not None else {})
+        remove_keys = remove_keys if remove_keys is not None else []
         self.replacements = self.default_replacements | add_replacements
         for k in self.replacements:
             if k in remove_keys:

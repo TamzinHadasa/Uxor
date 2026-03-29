@@ -58,7 +58,7 @@ class MultiKeyDict(dict[Any, Any]):
             new_dict[k] = v
         return new_dict
 
-    def __ior__(self, other: dict[Any, Any]) -> 'MultiKeyDict':
+    def __ior__(self, other) -> 'MultiKeyDict': # type: ignore[misc]
         for k, v in other.items():
             self[k] = v
         return self
