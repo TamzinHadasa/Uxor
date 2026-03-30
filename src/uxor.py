@@ -1,23 +1,22 @@
 import re
+from re import Pattern
 
-from data_classes import MultiKeyDict
-
-from data_classes import InvalidSequence
+from data_classes import InvalidSequence, ReplacementDict
 
 
-AddReplacements = dict[str | tuple[str, ...], str]
+AddReplacements = dict[str | Pattern | frozenset[str], str]
 FindReplace = list[tuple[str, str]]
 
 
 class Uxor:
-    default_replacements = MultiKeyDict({  # @TODO: All UCSUR codepoints.
-        ("te", "“"): "「",
-        ("to", "”"): "」",
+    default_replacements = ReplacementDict({  # @TODO: All UCSUR codepoints.
+        frozenset({"te", "“"}): "「",
+        frozenset({"to", "”"}): "」",
         "a": "\U000F1900",
         "akesi": "\U000F1901",
         "ala": "\U000F1902",
         "alasa": "\U000F1903",
-        ("ale", "ali"): "\U000F1904",
+        frozenset({"ale", "ali"}): "\U000F1904",
         "anpa": "\U000F1905",
         "ante": "\U000F1906",
         "anu": "\U000F1907",
@@ -154,21 +153,21 @@ class Uxor:
         ")": "\U000F1998", #  long glyph end 
         ".": "\U000F199C", #  middot 
         ":": "\U000F199D", #  colon
-        ("\uFE00", "\u2190", "<"): "1",
-        ("\uFE01", "\u2191", "^"): "2",
-        ("\uFE02", "\u2192", ">"): "3",
-        ("\uFE03", "\u2193", "v"): "4",
-        ("\uFE04", "\u2196", "<^", "^<"): "5",
-        ("\uFE05", "\u2197", ">^", "^>"): "6",
-        ("\uFE06", "\u2198", "v>", ">v"): "7",
-        ("\uFE07", "\u2199", "<v", "v<"): "8"
+        frozenset({"\uFE00", "\u2190", "<"}): "1",
+        frozenset({"\uFE01", "\u2191", "^"}): "2",
+        frozenset({"\uFE02", "\u2192", ">"}): "3",
+        frozenset({"\uFE03", "\u2193", "v"}): "4",
+        frozenset({"\uFE04", "\u2196", "<^", "^<"}): "5",
+        frozenset({"\uFE05", "\u2197", ">^", "^>"}): "6",
+        frozenset({"\uFE06", "\u2198", "v>", ">v"}): "7",
+        frozenset({"\uFE07", "\u2199", "<v", "v<"}): "8",
+        "\n": "\n"
     })
 
     @staticmethod
     def _multi_replace(text: str, regexes: FindReplace):
         for find, replace in regexes:
             text = re.sub(find, replace, text)
-            print(f"Replaced '{find}' with '{replace}'")
         return text
 
     def __init__(self,
@@ -185,7 +184,7 @@ class Uxor:
         for k in self.replacements:
             if k in remove_keys:
                 del self.replacements[k]
-        self._before_find_replace = before_find_replace or [(r"\s+", separator)]
+        self._before_find_replace = before_find_replace or [(r"[^\S\n]+", separator)]
         self.separator = separator
         self._after_find_replace = after_find_replace or [("", "")]
 
@@ -234,6 +233,6 @@ class Uxor:
             raise InvalidSequence(seq) from e
 
     def _tidy(self, sequences: list[str]) -> str:
-        joined = self.separator.join(sequences)
+        joined = "".join(sequences)
         tidied = self._multi_replace(joined, self._after_find_replace)
         return tidied

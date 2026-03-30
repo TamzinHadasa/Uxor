@@ -1,4 +1,6 @@
 # Don't change this line!
+import re
+
 from uxor import Uxor
 
 default = Uxor()  # Don't change this line!
@@ -14,22 +16,26 @@ pankantan = Uxor(
     # set:
     #     replacements={ ...
     add_replacements={
+        re.compile(r"(　\s*){2,}"): "  ",
         "nn": " ",
         "mm": "  ",
+        "　": " ",
+        "\n": "  ",
         "te": "\U000F19B4",
         "to": "\U000F19B5",
         "..": "\U000F199C",
         "::": "\U000F199D",
-        ("\uFE00", "\u2193", "v"): "1",
-        ("\uFE01", "\u2192", ">"): "2",
-        ("\uFE02", "\u2190", "<"): "3",
-        ("\uFE03", "\u2191", "^"): "4",
+        frozenset({"\uFE00", "\u2193", "v"}): "1",
+        frozenset({"\uFE01", "\u2192", ">"}): "2",
+        frozenset({"\uFE02", "\u2190", "<"}): "3",
+        frozenset({"\uFE03", "\u2191", "^"}): "4",
         "\u200C": ""  # Delete zero-width joiners.
     },
     remove_keys=["\uFE04", "\u2196", "<^", "^<",
                  "\uFE06", "\u2198", "v>", ">v",
                  "\uFE05", "\u2197", ">^", "^>",
-                 "\uFE07", "\u2199", "<v", "v<"],
+                 "\uFE07", "\u2199", "<v", "v<",
+                 "“", "”"],
     # Replaces any instance of U+F1909 (e) or U+F1927 (li), plus any instance of
     # U+F1921 (la) that doesn't follow a space, with themself plus U+200B (zero-
     # width space) (i.e., it adds U+200B after the character), unless there are
