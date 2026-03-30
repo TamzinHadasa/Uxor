@@ -6,4 +6,4 @@ import sys
 # Windows filepaths.
 sys.path.append(R'/path/to/your/directory/')
 
-from configs import *  # type: ignore # pylint: disable=import-error,wildcard-import,wrong-import-position
+from configs import *

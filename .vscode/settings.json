@@ -1,0 +1,4 @@
+{
+    "mypy-type-checker.reportingScope": "workspace",
+    "mypy-type-checker.preferDaemon": true
+}
