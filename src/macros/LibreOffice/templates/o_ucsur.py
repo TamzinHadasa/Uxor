@@ -4,7 +4,7 @@ import sys
 # CHANGE THIS to the filepath to the /src subdirectory of where you've
 # installed Uxor.  The "R" is there to avoid backspace issues with 
 # Windows filepaths.
-SRC_PATH = "REPLACEME"
+SRC_PATH = R"REPLACEME"
 sys.path.append(SRC_PATH)
 
 from configs import *
