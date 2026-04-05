@@ -1,7 +1,7 @@
 import re
 from re import Pattern
 
-from data_classes import InvalidSequence, ReplacementDict
+from data_classes import InvalidSequence, ReplacementDict, UnresolvedSequence
 
 
 AddReplacements = dict[str | Pattern | frozenset[str], str]
@@ -9,6 +9,7 @@ FindReplace = list[tuple[str, str]]
 
 
 class Uxor:
+    WORDBREAK = "\u0000"
     default_replacements = ReplacementDict({  # @TODO: All UCSUR codepoints.
         frozenset({"te", "“"}): "「",
         frozenset({"to", "”"}): "」",
@@ -143,7 +144,7 @@ class Uxor:
         "lanpan": "\U000F1985",
         "n": "\U000F1986",
         "misikeke": "\U000F1987",
-        "majuna": "\U000F19a2",
+        "majuna": "\U000F19A2",
         "zz": "\u200D", #  zero-width joiner 
         "[": "\U000F1990", #  cartouche start 
         "]": "\U000F1991", #  cartouche end 
@@ -165,33 +166,38 @@ class Uxor:
     })
 
     @staticmethod
-    def _multi_replace(text: str, regexes: FindReplace):
+    def _multi_replace(input_: str, regexes: FindReplace):
+        output = input_
         for find, replace in regexes:
-            text = re.sub(find, replace, text)
-        return text
+            output = re.sub(find, replace, output)
+        # Run again recursively, to see if any replacements led to new
+        # matches.
+        if output != input_:
+            output = Uxor._multi_replace(output, regexes)
+        return output
 
     def __init__(self,
                  *,
                  add_replacements: AddReplacements | None = None,
                  remove_keys: list[str] | None = None,
                  before_find_replace: FindReplace | None = None,
-                 separator: str = " ",
+                 wordbreak: str = r"[^\S\n]+",
                  after_find_replace: FindReplace | None = None):
         self.__name__ = self.__class__.__name__  # Needed for LibreOffice.
         add_replacements = add_replacements or {}
         remove_keys = remove_keys or []
         self.replacements = self.default_replacements | add_replacements
-        for k in self.replacements:
+        for k in self.replacements.copy():
             if k in remove_keys:
                 del self.replacements[k]
-        self._before_find_replace = before_find_replace or [(r"[^\S\n]+", separator)]
-        self.separator = separator
-        self._after_find_replace = after_find_replace or [("", "")]
+        self._before_find_replace = ([(wordbreak, self.WORDBREAK)]
+                                     + (before_find_replace or []))
+        self._after_find_replace = after_find_replace or []
 
     # Having the object be callable makes LibreOffice happy.
     def __call__(self, input_: str) -> str:
         sanitized = self._sanitize(input_)
-        separated = sanitized.split(self.separator)
+        separated = sanitized.split(self.WORDBREAK)
         try:
             sequences = [self._decode_seq(seq) for seq in separated]
         except InvalidSequence as e:
@@ -208,19 +214,22 @@ class Uxor:
         words = ""
         try:
             words = self._get_word(seq)
-        except InvalidSequence:
+        except UnresolvedSequence as e:
             if len(seq) == 1:
-                raise
+                raise InvalidSequence(seq) from e
             for idx in range(len(seq))[::-1]:
                 try:
                     words += self._get_word(seq[:idx])
-                except InvalidSequence:
+                except UnresolvedSequence:
                     continue
                 else:
-                    words += self._decode_seq(seq[idx:])
-                    break
+                    # If we've reached 0, it's back to the original
+                    # sequence.
+                    if idx:
+                        words += self._decode_seq(seq[idx:])
+                        break
             else:
-                raise
+                raise InvalidSequence(seq) from e
         return words
 
     def _get_word(self, seq: str) -> str:
@@ -230,7 +239,7 @@ class Uxor:
             if len(seq) == 1:
                 if seq in self.replacements.values():
                     return seq
-            raise InvalidSequence(seq) from e
+            raise UnresolvedSequence from e
 
     def _tidy(self, sequences: list[str]) -> str:
         joined = "".join(sequences)

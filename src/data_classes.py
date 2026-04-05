@@ -7,6 +7,8 @@ class UxorError(Exception): pass
 
 class ConfigError(UxorError): pass
 
+class UnresolvedSequence(UxorError, ValueError): pass
+
 class InvalidSequence(UxorError, ValueError): pass
 
 
@@ -38,6 +40,10 @@ class MultiKeyDict(dict[Any, Any]):
         return super().__getitem__(get_key)
 
     def __setitem__(self, query_key: Any, value: Any) -> None:
+        if isinstance(query_key, frozenset):
+            for subkey in query_key:
+                super().__setitem__(subkey, value)
+            return
         try:
             set_key = self._find_query_key_in_keys(query_key)
         except KeyError:

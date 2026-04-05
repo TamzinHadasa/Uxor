@@ -285,7 +285,7 @@ class-const-naming-style=UPPER_CASE
 
 # Regular expression matching correct class constant names. Overrides class-
 # const-naming-style.
-#class-const-rgx=
+class-const-rgx=[A-Z_][A-Z0-9_])$
 
 # Naming style matching correct inline iteration names.
 inlinevar-naming-style=any

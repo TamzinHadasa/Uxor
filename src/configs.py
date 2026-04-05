@@ -8,43 +8,48 @@ default = Uxor()  # Don't change this line!
 # You can now define Uxor objects with different configs below.  For instance,
 # here is something from a working project of mine.
 pankantan = Uxor(
-    # Replaces these special sequences with spaces.
-    # Note that if you want to merely amend the default replacements 
-    # (overwriting existing ones in case of conflict), you should set:
-    #     replacements=Uxor.default_replacements | { ...
-    # If you want to completely overwrite the default replacements, you should
-    # set:
-    #     replacements={ ...
+    before_find_replace=[
+        # Delete unwanted non-printing characters
+        (r"[\u200B\u200C\U000F1992]", ""),
+        (r"([^\[\U000F1990][\]\U000F1991]*)\.{2}", "\\1\U000F199C\U000F199C")
+    ],
     add_replacements={
         re.compile(r"(　\s*){2,}"): "  ",
         "nn": " ",
         "mm": "  ",
         "　": " ",
         "\n": "  ",
+        "xx": "\u2588",  # █
         "te": "\U000F19B4",
         "to": "\U000F19B5",
+        # ".." within cartouches have been handled in `before_find_replace`
         "..": "\U000F199C",
         "::": "\U000F199D",
         frozenset({"\uFE00", "\u2193", "v"}): "1",
         frozenset({"\uFE01", "\u2192", ">"}): "2",
         frozenset({"\uFE02", "\u2190", "<"}): "3",
-        frozenset({"\uFE03", "\u2191", "^"}): "4",
-        "\u200C": ""  # Delete zero-width joiners.
+        frozenset({"\uFE03", "\u2191", "^"}): "4"
     },
+    wordbreak=r"[^\S\n　]+",
     remove_keys=["\uFE04", "\u2196", "<^", "^<",
                  "\uFE06", "\u2198", "v>", ">v",
                  "\uFE05", "\u2197", ">^", "^>",
                  "\uFE07", "\u2199", "<v", "v<",
                  "“", "”"],
-    # Replaces any instance of U+F1909 (e) or U+F1927 (li), plus any instance of
-    # U+F1921 (la) that doesn't follow a space, with themself plus U+200B (zero-
-    # width space) (i.e., it adds U+200B after the character), unless there are
-    # no U+F1990 (cartouche start) before the next U+F1991 (cartouche end) 
-    # (i.e., we are mid-cartouche).
-    after_find_replace=[(
-        r"([\U000F1909\U000F190A\U000F1927\U000F199C]|(?<!\s)\U000F1921)(?![^\U000F1990]*\U000F1991)",
-        "\\1\u200B"
-    )]
+    after_find_replace=[
+        # Replaces any instance of U+F1909 (e) or U+F1927 (li), plus
+        # any instance of U+F1921 (la) that doesn't follow a space, with
+        # themself plus U+200B (zero-width space) (i.e., it adds U+200B
+        # after the character), unless there are no U+F1990 (cartouche 
+        # start) before the next U+F1991 (cartouche end) (i.e., we are 
+        # mid-cartouche).
+        (r"([\U000F1909\U000F190A\U000F1927\U000F199C]|(?<!\s)\U000F1921)(?!\u200B|[^\U000F1990]*\U000F1991)",
+         "\\1\u200B"),
+        (r" {2,}", "  "),
+        ("\U000F19414", "\U000F19413"),
+        (r"(\U000F1990[^\U000F1991]*[^\U000F1991\U000F1995\U000F1996])([\U000F1900-\U000F1987\U000F19A2](?:(?:[\U000F1995\U000F1996][\U000F1900-\U000F1987\U000F19A2]){0,2}|\U000F199C+|\U000F199D))([\u200B\U000F1991])",
+         "\\1\u200B\\2\U000F1992\\3")
+    ]
 )
 
 # Example constructor for a new Uxor object.  Remove any lines that you don't
