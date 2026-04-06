@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic" script:moduleType="normal">REM  *****  BASIC  *****
+REM See readme.md for instructions on adding this to LibreOffice.
+Option Explicit
+
+Sub Main
+dim sp As Object &apos; com.sun.star.script.provider.XScriptProvider compatible
+dim config as String
+dim uri As String
+dim getUcsur as object
+sp = ThisComponent.getScriptProvider()
+REM Change this to use a different Uxor object from configs.py!
+uri = &quot;vnd.sun.star.script:uxor_comp.py$standard?language=Python&amp;location=share&quot;
+set getUcsur = sp.getScript(uri)
+REM ----
+dim currSel as string
+dim frame as object
+dim dispatcher as object
+dim ucsur as string
+currSel = ThisComponent.getCurrentSelection().getByIndex(0).String
+frame = ThisComponent.CurrentController.Frame
+dispatcher = createUnoService(&quot;com.sun.star.frame.DispatchHelper&quot;)
+ucsur = getUcsur.invoke(Array(currSel), Array(), Array())
+dim args1(0) as new com.sun.star.beans.PropertyValue
+args1(0).Name = &quot;Text&quot;
+args1(0).Value = ucsur
+dispatcher.executeDispatch(frame, &quot;.uno:ResetAttributes&quot;, &quot;&quot;, 0, Array())
+dispatcher.executeDispatch(frame, &quot;.uno:InsertText&quot;, &quot;&quot;, 0, args1())
+End Sub
+</script:module>
