@@ -1,13 +1,9 @@
 # Don't change this line!
 import re
 
-from uxor import Uxor
+from Uxor.main import Uxor
 
-default = Uxor()  # Don't change this line!
-
-# You can now define Uxor objects with different configs below.  For instance,
-# here is something from a working project of mine.
-PANKANTAN = Uxor(
+uxor = Uxor(
     before_find_replace=[
         # Delete unwanted non-printing characters
         (r"[\u200B\u200C\U000F1992]", ""),

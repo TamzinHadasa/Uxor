@@ -1,0 +1,23 @@
+[project]
+name = "Uxor"
+version = "2.0.0a10"
+authors = [
+  { name="Tamzin Hadasa Kelly", email="coding@tamz.in" },
+]
+description = "toki pona's Universal(ish) TRANScriber tO ucsuR"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://github.com/tamzinhadasa/Uxor"
+Issues = "https://github.com/tamzinhadasa/Uxor/issues"
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
