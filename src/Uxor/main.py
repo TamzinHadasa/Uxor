@@ -1,16 +1,8 @@
 from argparse import ArgumentParser
-from collections.abc import Generator
-import copy
 from enum import Enum
 import enum
 import inspect
 import re
-from re import Pattern
-from typing import Any
-
-
-AddReplacements = dict[str | Pattern | frozenset[str], str]
-FindReplace = list[tuple[str, str]]
 
 
 class UxorError(Exception): pass
@@ -20,96 +12,6 @@ class ConfigError(UxorError): pass
 class UnresolvedSequence(UxorError, ValueError): pass
 
 class InvalidSequence(UxorError, ValueError): pass
-
-
-class MultiKeyDict(dict[Any, Any]):
-    """Dict that treats members of frozenset keys as keys themselves.
-    
-    For a dict like `foo = MultiKeyDict({frozenset({1, 2, 3, 4, 5}): True})`:
-    * `foo[1]` -> `True`
-    * `del foo[1]` -> `MultiKeyDict({frozenset({2, 3, 4, 5}): True})`
-    * `foo[2] = False` -> `MultiKeyDict({frozenset({3, 4, 5}): True, 2: False})`
-    * `foo | {3: None}` -> `MultiKeyDict({frozenset({4, 5}): True, 2: False, 3: None})`
-
-    Raises:
-      ConfigError if the same query key appears in two frozenset keys, or as a
-      key of its own and in a frozenset key.
-    """
-    def _find_query_key_in_keys(self, query_key):
-        matches = [k for k in self.keys()
-                   if (k == query_key) or (isinstance(k, frozenset)
-                                           and query_key in k)]
-        if not matches:
-            raise KeyError
-        if len(matches) > 1:
-            raise ConfigError(f"{__class__} has value {query_key} in multiple entries: {matches}")
-        return matches[0]
-
-    def __getitem__(self, query_key: Any) -> Any:
-        get_key = self._find_query_key_in_keys(query_key)
-        return super().__getitem__(get_key)
-
-    def __setitem__(self, query_key: Any, value: Any) -> None:
-        if isinstance(query_key, frozenset):
-            for subkey in query_key:
-                super().__setitem__(subkey, value)
-            return
-        try:
-            set_key = self._find_query_key_in_keys(query_key)
-        except KeyError:
-            pass
-        else:
-            if set_key != query_key:
-                new_set = set(set_key)
-                new_set.remove(query_key)
-                super().__setitem__(frozenset(new_set), self[set_key])
-                del self[set_key]
-        super().__setitem__(query_key, value)
-
-    def __delitem__(self, query_key: Any) -> None:
-        if (del_key := self._find_query_key_in_keys(query_key)) != query_key:
-            new_set = set(del_key)
-            new_set.remove(query_key)
-            self[frozenset(new_set)] = self[del_key]
-        super().__delitem__(del_key)
-
-    def __or__(self, other: dict[Any, Any]) -> 'MultiKeyDict':
-        new_dict = copy.deepcopy(self)
-        for k, v in other.items():
-            new_dict[k] = v
-        return new_dict
-
-    def __ior__(self, other) -> 'MultiKeyDict': # type: ignore[misc]
-        for k, v in other.items():
-            self[k] = v
-        return self
-
-
-class ReplacementDict(MultiKeyDict):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.patterns: dict[Pattern, Any] = {}
-        self._update_patterns()
-
-    def __getitem__(self, query_key):
-        if isinstance(query_key, str):
-            for pattern, repl in self.patterns.items():
-                if pattern.match(query_key):
-                    return repl
-        try:
-            return super().__getitem__(query_key)
-        except KeyError:
-            if query_key in self.values():
-                return query_key
-            raise
-
-    def __setitem__(self, query_key, value):
-        super().__setitem__(query_key, value)
-        self._update_patterns()
-
-    def _update_patterns(self):
-        self.patterns = {k: v for k, v in self.items()
-                         if isinstance(k, Pattern)}
 
 
 class LineBreak(Enum):
@@ -128,9 +30,54 @@ class LineBreak(Enum):
     AFTER_ANY_GLYPH = enum.auto()
 
 
-class StandardUxor:
-    WORD_SEPARATOR_IN_INPUT = " "
-    REPLACEMENTS = {  # @TODO: All UCSUR codepoints.
+class ReportInvalid(Enum):
+    NEVER = 0  # Explicitly 0 so that `bool(ReportInvalid.value)` is False.
+    UNLESS_VALID_REPLACEMENT = enum.auto()
+    ALWAYS = enum.auto()
+
+
+class Uxor:
+    INPUT_WORD_SEPARATOR = " "  # Literal space (U+20)
+    INPUT_WORD_SEPARATOR_REGEX = re.compile(fr"{INPUT_WORD_SEPARATOR}+")
+    VARIANT_JOINER = "\u200D"  # Zero-width joiner
+    SPECIAL_CHAR_REGEX = re.compile(r"([-+&[=\](_)])")
+    UNAMBIGUOUS_LINEBREAK_REGEX = re.compile(
+        r"[\U000F1909\U000F190A\U000F1921\U000F1927]")  # 󱤉󱤊󱤡󱤧
+    DIR_VARIANT_REGEX = re.compile(r"[\^><v]")
+    DIR_WORDS_REGEX = re.compile(r"ni")
+    VARIANT_REGEX = re.compile(
+         fr"""(.+?)  # Capture the shortest matching sequence of 1+ characters.
+              (  # Either:
+               \d+  # the longest matching sequence of 1+ digits
+              |  # --or--
+               (?<={DIR_WORDS_REGEX.pattern})  # where following this← pattern,
+               {DIR_VARIANT_REGEX.pattern}  # this← pattern,
+              )?  # --or-- nothing at all.
+              $  # End of string.""",
+        flags=re.VERBOSE)
+    _CLI_PROMPT = "o pana e sitelen Lasina."
+    _CLI_INPUT_LINE = "> "
+    _INVALID_SEQ_MESSAGE = "[SITELEN IKE: {}]"
+
+    # Values taken from <https://github.com/lipu-linku/sona/tree/main/glyphs/metadata>
+    # as compiled at <https://sitelenpona.net/ascii.html#standard-glyph-numbering>.
+    # If you change this attribute in a subclass, you're doing ni 
+    # replacement surgery.
+    dir_variant_replacements = {
+        "v": "01",
+        ">": "02",
+        "^": "03",
+        "<": "04",
+        "v>": "05",
+        ">v": "05",
+        "^>": "06",
+        ">^": "06",
+        "^<": "07",
+        "<^": "07",
+        "v<": "08",
+        "<v": "08"
+    }
+    base_word_replacements = {  # @TODO: All UCSUR codepoints.
         "te": "「",
         "to": "」",
         "a": "\U000F1900",
@@ -288,29 +235,26 @@ class StandardUxor:
     # PI_CONTINUER = "_"
     # PI_CLOSER = ")"
 
-    SPECIAL_CHAR_REGEX = re.compile(r"([-+&[=\](_)])")
-    UNAMBIGUOUS_LINEBREAK_REGEX = re.compile(
-        r"[\U000F1909\U000F190A\U000F1921\U000F1927]")  # 󱤉󱤊󱤡󱤧
-    VARIANT_REGEX = re.compile(r"(.+)(\d+|(?<=ni)[\^><v])?")
-
     def __init__(self,
                  allow_unspaced: bool = False,
-                 report_invalid: bool = False,
+                 ignore_variants: bool = False,
+                 report_invalid: ReportInvalid = ReportInvalid.NEVER,
                  line_break: LineBreak = LineBreak.AFTER_SENTENCE):
         self.allow_unspaced = allow_unspaced
+        self.ignore_variants = ignore_variants
         self.report_invalid = report_invalid
         self.line_break = line_break
         self.parse_sequence = (self.decode_unspaced if self.allow_unspaced
-                               else self.lookup_word)
+                               else self.get_replacement)
 
     def __call__(self, text: str) -> str:
         normalized = self.normalize(text)
-        separated = normalized.split(self.WORD_SEPARATOR_IN_INPUT)
+        separated = self.INPUT_WORD_SEPARATOR_REGEX.split(normalized)
         try:
             decoded = [self.decode(seq) for seq in separated]
         except InvalidSequence as e:
-            if self.report_invalid:
-                return f"[SITELEN IKE: {e.args[0]}]"
+            if self._should_report(bad_seq := e.args[0]):
+                return self._INVALID_SEQ_MESSAGE.format(bad_seq)
             return text
         compiled = self.compile(decoded)
         return compiled
@@ -327,54 +271,68 @@ class StandardUxor:
             if parameter.name != 'self':
                 arg_parser.add_argument(f"--{parameter.name}",
                                         default=parameter.default)
-                parameter.annotation
+
         args = vars(arg_parser.parse_args())
-        text = args['text']
-        del args['text']
-        init_kwargs = {k: signature.parameters[k].annotation(v)
-                       for k, v in args.items()}
+        text = args.pop('text')
+        init_kwargs = {}
+    
+        for key, input_val in args.items():
+            target_type = signature.parameters[key].annotation
+            new_val = input_val
+            if isinstance(input_val, str):
+                if issubclass(target_type, bool):
+                    new_val = bool(int(input_val))
+                elif issubclass(target_type, Enum):
+                    new_val = target_type[input_val]
+            init_kwargs[key] = new_val
+
         instance = cls(**init_kwargs)
         if text:
             print(instance(" ".join(text)))
         else:
-            print("o pana e sitelen Lasina.")
+            print(cls._CLI_PROMPT)
             while True:
-                print(instance(input("> ")))
+                print(instance(input(cls._CLI_INPUT_LINE)))
+
+    def _should_report(self, sequence: str) -> bool:
+        if self.report_invalid == ReportInvalid.UNLESS_VALID_REPLACEMENT:
+            return any ([i not in self.base_word_replacements.values()
+                        for i in sequence])
+        return bool(self.report_invalid.value)
 
     def normalize(self, text: str) -> str:
         """Normalizes any quirks in the input.
         
-        In the standard implementation of Uxor, the only thing this does
-        is convert multiple consecutive spaces (U+20) to a single space.
+        In the standard implementation of Uxor, this does not do
+        anything.
         """
-        normalized = re.sub(r" +", self.WORD_SEPARATOR_IN_INPUT, text)
-        return normalized
+        return text
 
     def decode(self, sequence: str) -> str:
-        # We reuse WORD_SEPARATOR_IN_INPUT because it's guaranteed not
+        # We reuse INPUT_WORD_SEPARATOR because it's guaranteed not
         # to appear elsewhere in the string.
         spaced = self.SPECIAL_CHAR_REGEX.sub(
-            fr"{self.WORD_SEPARATOR_IN_INPUT}\1{self.WORD_SEPARATOR_IN_INPUT}",
+            fr"{self.INPUT_WORD_SEPARATOR}\1{self.INPUT_WORD_SEPARATOR}",
             sequence
         )
-        words = spaced.split(self.WORD_SEPARATOR_IN_INPUT)
+        subsequences = self.INPUT_WORD_SEPARATOR_REGEX.split(spaced)
         try:
-            decoded = [i for w in words for i in self.parse_sequence(w)]
+            decoded = [i for ss in subsequences for i in self.parse_sequence(ss)]
         except UnresolvedSequence as e:
             raise InvalidSequence(e.args[0]) from e
-        compiled = self.compile(decoded)
-        return compiled
+        joined = "".join(decoded)
+        return joined
     
     def decode_unspaced(self, sequence: str) -> list[str]:
         decoded = []
         try:
-            decoded = self.lookup_word(sequence)
+            decoded = self.get_replacement(sequence)
         except UnresolvedSequence as e:
             if len(sequence) == 1:
                 raise InvalidSequence(sequence) from e
             for idx in range(1, len(sequence))[::-1]:
                 try:
-                    decoded += self.lookup_word(sequence[:idx])
+                    decoded += self.get_replacement(sequence[:idx])
                 except UnresolvedSequence:
                     continue
                 else:
@@ -387,27 +345,45 @@ class StandardUxor:
                 raise InvalidSequence(sequence) from e
         return decoded
 
-    def lookup_word(self, word: str) -> list[str]:
+    def get_replacement(self, sequence: str) -> list[str]:
         try:
-            base_word, variant_indicator = self.VARIANT_REGEX.match(word).groups()
+            base_word, inp_variant_code = (self.VARIANT_REGEX.match(sequence)
+                                           .groups())  # type: ignore[union-attr]
         except AttributeError as e:
-            print(f"Invalid sequence {word}")
-            raise InvalidSequence(word) from e
+            raise InvalidSequence(sequence) from e
+        else:
+            base_word: str
+            inp_variant_code: str
         try:
-            base_glyph = self.REPLACEMENTS[base_word]
+            base_glyph = self.base_word_replacements[base_word]
         except KeyError as e:
-            raise UnresolvedSequence(word) from e
-        return [f"{base_glyph}{variant_indicator or ''}"]
+            raise UnresolvedSequence(sequence) from e
+        if not self.ignore_variants and inp_variant_code:
+            out_variant_code = self.dir_variant_replacements.get(
+                inp_variant_code, inp_variant_code)
+            variant_suffix = self.VARIANT_JOINER + out_variant_code
+        else:
+            variant_suffix = ""
+        return [base_glyph + variant_suffix]
 
     def compile(self, sequences: list[str]) -> str:
         match self.line_break:
             case LineBreak.AFTER_SENTENCE:
                 spaced = sequences
             case LineBreak.WHEN_UNAMBIGUOUS:
-                spaced = [
-                    f"{s}\u200B" if self.UNAMBIGUOUS_LINEBREAK_REGEX.match(s)
-                    else s for s in sequences]
+                spaced = [f"{s}\u200B"
+                          if self.UNAMBIGUOUS_LINEBREAK_REGEX.match(s)
+                          else s for s in sequences]
             case LineBreak.AFTER_ANY_GLYPH:
-                spaced = [f"{s}\u200B" for s in sequences]
-        compiled = "".join(spaced)
+                spaced = [f"\u200B{s}"
+                          if not re.match(r"[\s\U000F1990-\U000F1998]", s)
+                          else s for s in sequences]
+        joined = "".join(spaced)
+        compiled = (re.sub(r"(^|\s)\u200B", r"\1", joined)
+                    if self.line_break == LineBreak.AFTER_ANY_GLYPH
+                    else joined)
         return compiled
+
+
+if __name__ == "__main__":
+    Uxor.cli()
