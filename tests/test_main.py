@@ -8,7 +8,7 @@ def test_default():
     assert u("ni2 li toki+pona") == "󱥁‍2󱤧󱥬󱦖󱥔"
     assert u("ni03 li toki+pona") == "󱥁‍03󱤧󱥬󱦖󱥔"
     assert u("ni< li toki+pona") == "󱥁‍04󱤧󱥬󱦖󱥔"
-    assert u("this isn't toki pona") == "this isn't toki pona"
+    assert u("this isn't toki pona") == "this isn't 󱥬󱥔"
 
 
 def test_unspaced():
@@ -18,7 +18,7 @@ def test_unspaced():
     assert u("ni2 li toki+pona") == "󱥁‍2󱤧󱥬󱦖󱥔"
     assert u("ni03 li toki+pona") == "󱥁‍03󱤧󱥬󱦖󱥔"
     assert u("ni< li toki+pona") == "󱥁‍04󱤧󱥬󱦖󱥔"
-    assert u("this isn't toki pona") == "this isn't toki pona"
+    assert u("this isn't toki pona") == "this isn't 󱥬󱥔"
     assert u("tokipona") == "󱥬󱥔"
     assert u("kalama") == "󱤕"
     assert u("thisisnttokipona") == "thisisnttokipona"
@@ -31,7 +31,7 @@ def test_ignore_variants():
     assert u("ni2 li toki+pona") == "󱥁󱤧󱥬󱦖󱥔"
     assert u("ni03 li toki+pona") == "󱥁󱤧󱥬󱦖󱥔"
     assert u("ni< li toki+pona") == "󱥁󱤧󱥬󱦖󱥔"
-    assert u("this isn't toki pona") == "this isn't toki pona"
+    assert u("this isn't toki pona") == "this isn't 󱥬󱥔"
 
 
 def test_report_invalid1():
@@ -41,7 +41,11 @@ def test_report_invalid1():
     assert u("ni2 li toki+pona") == "󱥁‍2󱤧󱥬󱦖󱥔"
     assert u("ni03 li toki+pona") == "󱥁‍03󱤧󱥬󱦖󱥔"
     assert u("ni< li toki+pona") == "󱥁‍04󱤧󱥬󱦖󱥔"
-    assert u("this isn't toki pona") == u._INVALID_SEQ_MESSAGE.format("this")
+    assert u("this isn't toki pona") == (
+        u._handle_invalid("this", final=False)
+        + u._handle_invalid("isn't", final=False)
+        + "󱥬󱥔"
+    )
     assert u("󱥬󱤧󱥔") == "󱥬󱤧󱥔"
 
 
@@ -52,8 +56,12 @@ def test_report_invalid2():
     assert u("ni2 li toki+pona") == "󱥁‍2󱤧󱥬󱦖󱥔"
     assert u("ni03 li toki+pona") == "󱥁‍03󱤧󱥬󱦖󱥔"
     assert u("ni< li toki+pona") == "󱥁‍04󱤧󱥬󱦖󱥔"
-    assert u("this isn't toki pona") == u._INVALID_SEQ_MESSAGE.format("this")
-    assert u("󱥬󱤧󱥔") == u._INVALID_SEQ_MESSAGE.format("󱥬󱤧󱥔")
+    assert u("this isn't toki pona") == (
+        u._handle_invalid("this", final=False)
+        + u._handle_invalid("isn't", final=False)
+        + "󱥬󱥔"
+    )    
+    assert u("󱥬󱤧󱥔") == u._handle_invalid("󱥬󱤧󱥔", final=True)
 
 
 def test_line_break1():
@@ -63,14 +71,14 @@ def test_line_break1():
     assert u("ni2 li toki+pona") == "󱥁‍2󱤧​󱥬󱦖󱥔"
     assert u("ni03 li toki+pona") == "󱥁‍03󱤧​󱥬󱦖󱥔"
     assert u("ni< li toki+pona") == "󱥁‍04󱤧​󱥬󱦖󱥔"
-    assert u("this isn't toki pona") == "this isn't toki pona"
+    assert u("this isn't toki pona") == "this isn't 󱥬󱥔"
 
 
 def test_line_break2():
-    u = Uxor(line_break=LineBreak.AFTER_ANY_GLYPH)
-    assert u("toki li pona") == "󱥬​󱤧​󱥔"
-    assert u("ni li toki+pona") == "󱥁​󱤧​󱥬󱦖󱥔"
-    assert u("ni2 li toki+pona") == "󱥁‍2​󱤧​󱥬󱦖󱥔"
-    assert u("ni03 li toki+pona") == "󱥁‍03​󱤧​󱥬󱦖󱥔"
-    assert u("ni< li toki+pona") == "󱥁‍04​󱤧​󱥬󱦖󱥔"
-    assert u("this isn't toki pona") == "this isn't toki pona"
+    u = Uxor(line_break=LineBreak.AFTER_WORD_GROUP)
+    assert u("toki li pona") == "󱥬​󱤧​󱥔​"
+    assert u("ni li toki+pona") == "󱥁​󱤧​󱥬󱦖󱥔​"
+    assert u("ni2 li toki+pona") == "󱥁‍2​󱤧​󱥬󱦖󱥔​"
+    assert u("ni03 li toki+pona") == "󱥁‍03​󱤧​󱥬󱦖󱥔​"
+    assert u("ni< li toki+pona") == "󱥁‍04​󱤧​󱥬󱦖󱥔​"
+    assert u("this isn't toki pona") == "this isn't 󱥬​󱥔​"

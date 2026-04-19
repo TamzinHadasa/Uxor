@@ -1,13 +1,8 @@
-from argparse import ArgumentParser
 from enum import Enum
-import enum
-import inspect
 import re
 
 
 class UxorError(Exception): pass
-
-class ConfigError(UxorError): pass
 
 class UnresolvedSequence(UxorError, ValueError): pass
 
@@ -25,45 +20,67 @@ class LineBreak(Enum):
     AFTER_ANY_GLYPH: Breaking zero-width spaces will be inserted after
       every glyph.
     """
-    AFTER_SENTENCE = enum.auto()
-    WHEN_UNAMBIGUOUS = enum.auto()
-    AFTER_ANY_GLYPH = enum.auto()
+    AFTER_SENTENCE = 0
+    WHEN_UNAMBIGUOUS = 1
+    AFTER_WORD_GROUP = 2
 
 
 class ReportInvalid(Enum):
-    NEVER = 0  # Explicitly 0 so that `bool(ReportInvalid.value)` is False.
-    UNLESS_VALID_REPLACEMENT = enum.auto()
-    ALWAYS = enum.auto()
+    NEVER = 0
+    UNLESS_VALID_REPLACEMENT = 1
+    ALWAYS = 2
 
 
 class Uxor:
-    INPUT_WORD_SEPARATOR = " "  # Literal space (U+20)
-    INPUT_WORD_SEPARATOR_REGEX = re.compile(fr"{INPUT_WORD_SEPARATOR}+")
-    VARIANT_JOINER = "\u200D"  # Zero-width joiner
-    SPECIAL_CHAR_REGEX = re.compile(r"([-+&[=\](_)])")
-    UNAMBIGUOUS_LINEBREAK_REGEX = re.compile(
-        r"[\U000F1909\U000F190A\U000F1921\U000F1927]")  # 󱤉󱤊󱤡󱤧
-    DIR_VARIANT_REGEX = re.compile(r"[\^><v]")
-    DIR_WORDS_REGEX = re.compile(r"ni")
-    VARIANT_REGEX = re.compile(
-         fr"""(.+?)  # Capture the shortest matching sequence of 1+ characters.
-              (  # Either:
-               \d+  # the longest matching sequence of 1+ digits
-              |  # --or--
-               (?<={DIR_WORDS_REGEX.pattern})  # where following this← pattern,
-               {DIR_VARIANT_REGEX.pattern}  # this← pattern,
-              )?  # --or-- nothing at all.
-              $  # End of string.""",
+    INP_WORD_SEP = " "  # Literal space (U+20)
+    OUT_SENTENCE_SEP = "\u3000"  # "　"
+    OUT_VAR_JOINER = "\u200D"  # Zero-width joiner
+
+    INP_WORD_SEP_RE = re.compile(fr"{INP_WORD_SEP}+")
+    SPECIAL_CHAR_RE = re.compile(r"([-+&[=\](_)])")
+    DIR_VAR_RE = re.compile(r"[\^><v]")
+    DIR_WORDS_RE = re.compile(r"ni")
+    VAR_RE = re.compile(
+        fr"""(.+?)  # Capture the shortest matching sequence of 1+ characters.
+             (  # Either:
+              \d+  # the longest matching sequence of 1+ digits
+             |  # --or--
+              (?<={DIR_WORDS_RE.pattern})  # where following this← pattern,
+              {DIR_VAR_RE.pattern}  # this← pattern,
+             )?  # --or-- nothing at all.
+             $  # End of string.
+        """,
         flags=re.VERBOSE)
+
     _CLI_PROMPT = "o pana e sitelen Lasina."
     _CLI_INPUT_LINE = "> "
     _INVALID_SEQ_MESSAGE = "[SITELEN IKE: {}]"
 
+    LINE_BREAK_RES = {
+        # LineBreak.AFTER_SENTENCE: re.compile(fr".(?={OUTPUT_SENTENCE_SEPARATOR}|$)"),
+        LineBreak.WHEN_UNAMBIGUOUS: re.compile(
+            r"([\U000F1909\U000F190A\U000F1921\U000F1927])"),  # 󱤉󱤊󱤡󱤧
+        LineBreak.AFTER_WORD_GROUP: re.compile(
+            r"""(  # Either:
+                 [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # A word glyph,
+                 (?:  # followed by either
+                  [\u200D\U000F1995\U000F1996]  # a ZWJ, stacking joiner, or scaling joiner,
+                  [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # and another word glyph
+                 |  # --or--
+                  \u200D  # a ZWJ
+                  [0-9]+  # and one or more Arabic numerals
+                 )*  # zero to infinity times;
+                |  # --or--
+                 [\U000F1991\U000F1998]  # a cartouche end or long-glyph end.
+                )
+            """,
+            flags=re.VERBOSE)
+    }
     # Values taken from <https://github.com/lipu-linku/sona/tree/main/glyphs/metadata>
     # as compiled at <https://sitelenpona.net/ascii.html#standard-glyph-numbering>.
     # If you change this attribute in a subclass, you're doing ni 
     # replacement surgery.
-    dir_variant_replacements = {
+    DIR_VAR_REPLS = {
         "v": "01",
         ">": "02",
         "^": "03",
@@ -77,7 +94,7 @@ class Uxor:
         "v<": "08",
         "<v": "08"
     }
-    base_word_replacements = {  # @TODO: All UCSUR codepoints.
+    BASE_WORD_REPLS = {  # @TODO: All UCSUR codepoints.
         "te": "「",
         "to": "」",
         "a": "\U000F1900",
@@ -224,7 +241,7 @@ class Uxor:
         ":": "\U000F199D", #  colon
         "\n": "\n"
     }
-    # SENTENCE_SEPARATOR_IN_OUTPUT = "\u3000"  # "　"
+
     # STACK_JOINER = "-"
     # NEST_JOINER = "+"
     # SPECIAL_JOINER = "&"
@@ -244,59 +261,35 @@ class Uxor:
         self.ignore_variants = ignore_variants
         self.report_invalid = report_invalid
         self.line_break = line_break
+        self.line_break_regex = self.LINE_BREAK_RES.get(line_break)
         self.parse_sequence = (self.decode_unspaced if self.allow_unspaced
                                else self.get_replacement)
 
     def __call__(self, text: str) -> str:
         normalized = self.normalize(text)
-        separated = self.INPUT_WORD_SEPARATOR_REGEX.split(normalized)
-        try:
-            decoded = [self.decode(seq) for seq in separated]
-        except InvalidSequence as e:
-            if self._should_report(bad_seq := e.args[0]):
-                return self._INVALID_SEQ_MESSAGE.format(bad_seq)
-            return text
+        separated = self.INP_WORD_SEP_RE.split(normalized)
+        decoded = []
+        for _ in range(len(separated)):
+            seq = separated.pop(0)
+            try:
+                decoded_seq = self.decode(seq)
+            except InvalidSequence:
+                decoded_seq = self._handle_invalid(seq,
+                                                   final=not any(separated))
+            decoded.append(decoded_seq)
         compiled = self.compile(decoded)
         return compiled
 
-    @classmethod
-    def cli(cls) -> None:
-        signature = inspect.signature(cls.__init__)
-        # @TODO: Get info from docstring, pass to `help=` in 
-        # `add_argument`.
-        # documentation = inspect.getdoc(cls.__init__)
-        arg_parser = ArgumentParser()
-        arg_parser.add_argument('text', nargs='*')
-        for parameter in signature.parameters.values():
-            if parameter.name != 'self':
-                arg_parser.add_argument(f"--{parameter.name}",
-                                        default=parameter.default)
-
-        args = vars(arg_parser.parse_args())
-        text = args.pop('text')
-        init_kwargs = {}
-    
-        for key, input_val in args.items():
-            target_type = signature.parameters[key].annotation
-            new_val = input_val
-            if isinstance(input_val, str):
-                if issubclass(target_type, bool):
-                    new_val = bool(int(input_val))
-                elif issubclass(target_type, Enum):
-                    new_val = target_type[input_val]
-            init_kwargs[key] = new_val
-
-        instance = cls(**init_kwargs)
-        if text:
-            print(instance(" ".join(text)))
-        else:
-            print(cls._CLI_PROMPT)
-            while True:
-                print(instance(input(cls._CLI_INPUT_LINE)))
+    def _handle_invalid(self, sequence: str, *, final: bool) -> str:
+        return (
+            (self._INVALID_SEQ_MESSAGE.format(sequence)
+             if self._should_report(sequence) else sequence)
+            + (self.INP_WORD_SEP if not final else "")
+        )
 
     def _should_report(self, sequence: str) -> bool:
         if self.report_invalid == ReportInvalid.UNLESS_VALID_REPLACEMENT:
-            return any ([i not in self.base_word_replacements.values()
+            return any ([i not in self.BASE_WORD_REPLS.values()
                         for i in sequence])
         return bool(self.report_invalid.value)
 
@@ -311,13 +304,14 @@ class Uxor:
     def decode(self, sequence: str) -> str:
         # We reuse INPUT_WORD_SEPARATOR because it's guaranteed not
         # to appear elsewhere in the string.
-        spaced = self.SPECIAL_CHAR_REGEX.sub(
-            fr"{self.INPUT_WORD_SEPARATOR}\1{self.INPUT_WORD_SEPARATOR}",
+        spaced = self.SPECIAL_CHAR_RE.sub(
+            fr"{self.INP_WORD_SEP}\1{self.INP_WORD_SEP}",
             sequence
         )
-        subsequences = self.INPUT_WORD_SEPARATOR_REGEX.split(spaced)
+        subsequences = self.INP_WORD_SEP_RE.split(spaced)
         try:
-            decoded = [i for ss in subsequences for i in self.parse_sequence(ss)]
+            decoded = [i for ss in subsequences
+                       for i in self.parse_sequence(ss)]
         except UnresolvedSequence as e:
             raise InvalidSequence(e.args[0]) from e
         joined = "".join(decoded)
@@ -347,7 +341,7 @@ class Uxor:
 
     def get_replacement(self, sequence: str) -> list[str]:
         try:
-            base_word, inp_variant_code = (self.VARIANT_REGEX.match(sequence)
+            base_word, inp_variant_code = (self.VAR_RE.match(sequence)
                                            .groups())  # type: ignore[union-attr]
         except AttributeError as e:
             raise InvalidSequence(sequence) from e
@@ -355,35 +349,31 @@ class Uxor:
             base_word: str
             inp_variant_code: str
         try:
-            base_glyph = self.base_word_replacements[base_word]
+            base_glyph = self.BASE_WORD_REPLS[base_word]
         except KeyError as e:
             raise UnresolvedSequence(sequence) from e
         if not self.ignore_variants and inp_variant_code:
-            out_variant_code = self.dir_variant_replacements.get(
+            out_variant_code = self.DIR_VAR_REPLS.get(
                 inp_variant_code, inp_variant_code)
-            variant_suffix = self.VARIANT_JOINER + out_variant_code
+            variant_suffix = self.OUT_VAR_JOINER + out_variant_code
         else:
             variant_suffix = ""
         return [base_glyph + variant_suffix]
 
     def compile(self, sequences: list[str]) -> str:
-        match self.line_break:
-            case LineBreak.AFTER_SENTENCE:
-                spaced = sequences
-            case LineBreak.WHEN_UNAMBIGUOUS:
-                spaced = [f"{s}\u200B"
-                          if self.UNAMBIGUOUS_LINEBREAK_REGEX.match(s)
-                          else s for s in sequences]
-            case LineBreak.AFTER_ANY_GLYPH:
-                spaced = [f"\u200B{s}"
-                          if not re.match(r"[\s\U000F1990-\U000F1998]", s)
-                          else s for s in sequences]
-        joined = "".join(spaced)
-        compiled = (re.sub(r"(^|\s)\u200B", r"\1", joined)
-                    if self.line_break == LineBreak.AFTER_ANY_GLYPH
-                    else joined)
-        return compiled
+        joined = "".join(sequences)
+        spaced = (self.line_break_regex.sub("\\1\u200B", joined)
+                  if self.line_break_regex else joined)
+        return spaced
+
+    def cli(self, text: str = "") -> None:
+        if text:
+            print(self(text))
+        else:
+            print(self._CLI_PROMPT)
+            while True:
+                print(self(input(self._CLI_INPUT_LINE)))
 
 
 if __name__ == "__main__":
-    Uxor.cli()
+    Uxor().cli()
