@@ -12,10 +12,10 @@ class PankantanUxor(Uxor):
     the output.  However, it is included in the prefabs module to
     demonstrate what a highly customized Uxor looks like.    
     """
-    INP_WORD_SEP_RE = re.compile(r"[^\S\n\u3000]+")  # U3000 = Ideographic space
+    _INP_WORD_SEP_DEFAULT_PATTERN = r"[^\S\n\u3000]+"  # U3000 = Ideographic space
     OUT_VAR_JOINER = ""
-    LINE_BREAK_RES = Uxor.LINE_BREAK_RES | {
-        LineBreak.WHEN_UNAMBIGUOUS: re.compile(r"([\U000F1909\U000F190A\U000F1927\U000F199C]|(?<!\s)\U000F1921)(?!\u200B|[^\U000F1990]*\U000F1991)")
+    _LINE_BREAK_PATTERNS = Uxor._LINE_BREAK_PATTERNS | {
+        LineBreak.WHEN_UNAMBIGUOUS: r"([\U000F1909\U000F190A\U000F1927\U000F199C]|(?<!\s)\U000F1921)(?!\u200B|[^\U000F1990]*\U000F1991)"
     }
     BASE_WORD_REPLS = Uxor.BASE_WORD_REPLS
     # The ".." and "::" keys need to come first in the dict, so these

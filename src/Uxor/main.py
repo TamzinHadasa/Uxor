@@ -1,6 +1,10 @@
+import dataclasses as dc
+from dataclasses import dataclass
 from enum import Enum
 import re
+from re import Pattern, RegexFlag
 import sys
+from typing import Any
 
 
 class UxorError(Exception): pass
@@ -10,7 +14,12 @@ class UnresolvedSequence(UxorError, ValueError): pass
 class InvalidSequence(UxorError, ValueError): pass
 
 
-class LineBreak(Enum):
+class CanBeFalsyEnum(Enum):
+    def __bool__(self):
+        return bool(self.value)
+
+
+class LineBreak(CanBeFalsyEnum):
     """
     AFTER_SENTENCE: The breaking ideographic spaces already inserted
       between sentences will be the only breaking characters in the
@@ -26,10 +35,23 @@ class LineBreak(Enum):
     AFTER_WORD_GROUP = 2
 
 
-class ReportInvalid(Enum):
+class ReportInvalid(CanBeFalsyEnum):
     NEVER = 0
     UNLESS_VALID_REPLACEMENT = 1
     ALWAYS = 2
+
+
+@dataclass
+class RegexIngredients:
+    pattern: str
+    pos_formatters: list[Any] = dc.field(default_factory=list)
+    kw_formatters: dict[str, Any] = dc.field(default_factory=dict)
+    flags: RegexFlag | int = 0
+
+    def compile(self) -> Pattern[str]:
+        return re.compile(
+            self.pattern.format(*self.pos_formatters, **self.kw_formatters),
+            flags=self.flags)
 
 
 class Uxor:
@@ -37,40 +59,38 @@ class Uxor:
     OUT_SENTENCE_SEP = "\u3000"  # "　"
     OUT_VAR_JOINER = "\u200D"  # Zero-width joiner
 
-    INP_WORD_SEP_RE = re.compile(fr"{INP_WORD_SEP}+")
-    SPECIAL_CHAR_RE = re.compile(r"([-+&[=\](_)])")
-    DIR_VAR_RE = re.compile(r"[\^><v]")
-    DIR_WORDS_RE = re.compile(r"ni")
-    VAR_RE = re.compile(
-        fr"""(.+?)  # Capture the shortest matching sequence of 1+ characters.
-             (  # Either:
-              \d+  # the longest matching sequence of 1+ digits
-             |  # --or--
-              (?<={DIR_WORDS_RE.pattern})  # where following this← pattern,
-              {DIR_VAR_RE.pattern}  # this← pattern,
-             )?  # --or-- nothing at all.
-             $  # End of string.
-        """,
-        flags=re.VERBOSE)
+    # Some of these are templates, which will be fully formatted in
+    # __init__.
+    _INP_WORD_SEP_DEFAULT_PATTERN = r"{separator}+"
+    _SPECIAL_CHAR_DEFAULT_PATTERN = r"([-+&[=\](_)])"
+    _DIR_VAR_DEFAULT_PATTERN = r"[\^><v]"
+    _DIR_WORDS_DEFAULT_PATTERN = "ni"
+    _VAR_DEFAULT_PATTERN = r"""
+        (.+?)  # Capture the shortest matching sequence of 1+ characters.
+        (  # Either:
+         \d+  # the longest matching sequence of 1+ digits
+        |  # --or--
+         (?<={dir_words})  # where following this← pattern,
+         {dir_var}  # this← pattern,
+        )?  # --or-- nothing at all.
+        $  # End of string."""
 
-    LINE_BREAK_RES = {
-        LineBreak.WHEN_UNAMBIGUOUS: re.compile(
-            r"([\U000F1909\U000F190A\U000F1921\U000F1927])"),  # 󱤉󱤊󱤡󱤧
-        LineBreak.AFTER_WORD_GROUP: re.compile(
-            fr"""(  # Either:
-                  [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # A word glyph,
-                  (?:  # followed by either
-                   [\u200D\U000F1995\U000F1996]  # a ZWJ, stacking joiner, or scaling joiner,
-                   [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # and another word glyph
-                  |  # --or--
-                   {OUT_VAR_JOINER}  # (by default) a ZWJ
-                   [0-9]+  # and one or more Arabic numerals
-                  )*  # zero to infinity times;
-                 |  # --or--
-                  [\U000F1991\U000F1998]  # a cartouche end or long-glyph end.
-                 )
-            """,
-            flags=re.VERBOSE)
+    _LINE_BREAK_PATTERNS = {
+        LineBreak.AFTER_SENTENCE: "",
+        LineBreak.WHEN_UNAMBIGUOUS: r"([\U000F1909\U000F190A\U000F1921\U000F1927])",  # 󱤉󱤊󱤡󱤧
+        LineBreak.AFTER_WORD_GROUP: r"""
+            (  # Either:
+             [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # A word glyph,
+             (?:  # followed by either
+              [\u200D\U000F1995\U000F1996]  # a ZWJ, stacking joiner, or scaling joiner,
+              [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # and another word glyph
+             |  # --or--
+              {out_var_joiner}  # (by default) a ZWJ
+              [0-9]+  # and one or more Arabic numerals
+             )*  # zero to infinity times;
+            |  # --or--
+             [\U000F1991\U000F1998]  # a cartouche end or long-glyph end.
+            )"""
     }
     # Values taken from <https://github.com/lipu-linku/sona/tree/main/glyphs/metadata>
     # as compiled at <https://sitelenpona.net/ascii.html#standard-glyph-numbering>.
@@ -251,13 +271,55 @@ class Uxor:
         self.ignore_variants = ignore_variants
         self.report_invalid = report_invalid
         self.line_break = line_break
-        self.line_break_regex = self.LINE_BREAK_RES.get(line_break)
+
+        self._inp_word_sep_ingredients = RegexIngredients(
+            self._INP_WORD_SEP_DEFAULT_PATTERN,
+            kw_formatters={'separator': self.INP_WORD_SEP})
+        self._special_char_ingredients = RegexIngredients(
+            self._SPECIAL_CHAR_DEFAULT_PATTERN)
+        self._dir_var_ingredients = RegexIngredients(
+            self._DIR_VAR_DEFAULT_PATTERN)
+        self._dir_words_ingredients = RegexIngredients(
+            self._DIR_WORDS_DEFAULT_PATTERN)
+        self._var_ingredients = RegexIngredients(
+            self._VAR_DEFAULT_PATTERN,
+            kw_formatters={'dir_words': self._dir_words_re.pattern,
+                           'dir_var': self._dir_var_re.pattern},
+            flags=re.VERBOSE)
+        self._line_break_ingredients = RegexIngredients(
+            self._LINE_BREAK_PATTERNS[line_break],
+            kw_formatters={'out_var_joiner': self.OUT_VAR_JOINER},
+            flags=re.VERBOSE)
         self.parse_sequence = (self.decode_unspaced if self.allow_unspaced
                                else self.get_replacement)
 
+    @property
+    def _inp_word_sep_re(self) -> Pattern[str]:
+        return self._inp_word_sep_ingredients.compile()
+
+    @property
+    def _special_char_re(self) -> Pattern[str]:
+        return self._special_char_ingredients.compile()
+
+    @property
+    def _dir_var_re(self) -> Pattern[str]:
+        return self._dir_var_ingredients.compile()
+
+    @property
+    def _dir_words_re(self) -> Pattern[str]:
+        return self._dir_words_ingredients.compile()
+
+    @property
+    def _var_re(self) -> Pattern[str]:
+        return self._var_ingredients.compile()
+
+    @property
+    def _line_break_re(self) -> Pattern[str]:
+        return self._line_break_ingredients.compile()
+
     def __call__(self, text: str) -> str:
         normalized = self.normalize(text)
-        separated = self.INP_WORD_SEP_RE.split(normalized)
+        separated = self._inp_word_sep_re.split(normalized)
         decoded = []
         for _ in range(len(separated)):
             seq = separated.pop(0)
@@ -294,11 +356,11 @@ class Uxor:
     def decode(self, sequence: str) -> str:
         # We reuse INPUT_WORD_SEPARATOR because it's guaranteed not
         # to appear elsewhere in the string.
-        spaced = self.SPECIAL_CHAR_RE.sub(
+        spaced = self._special_char_re.sub(
             fr"{self.INP_WORD_SEP}\1{self.INP_WORD_SEP}",
             sequence
         )
-        subsequences = self.INP_WORD_SEP_RE.split(spaced)
+        subsequences = self._inp_word_sep_re.split(spaced)
         try:
             decoded = [i for ss in subsequences
                        for i in self.parse_sequence(ss)]
@@ -331,7 +393,7 @@ class Uxor:
 
     def get_replacement(self, sequence: str) -> list[str]:
         try:
-            base_word, inp_var_code = (self.VAR_RE.match(sequence).groups())  # type: ignore[union-attr]
+            base_word, inp_var_code = (self._var_re.match(sequence).groups())  # type: ignore[union-attr]
         except AttributeError as e:
             raise InvalidSequence(sequence) from e
         try:
@@ -345,8 +407,8 @@ class Uxor:
 
     def compile(self, sequences: list[str]) -> str:
         joined = "".join(sequences)
-        spaced = (self.line_break_regex.sub("\\1\u200B", joined)
-                  if self.line_break_regex else joined)
+        spaced = (self._line_break_re.sub("\\1\u200B", joined)
+                  if self.line_break else joined)
         return spaced
 
     def cli(self) -> None:

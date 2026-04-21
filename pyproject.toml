@@ -1,6 +1,6 @@
 [project]
 name = "uxor"
-version = "2.0.0a14"
+version = "2.0.0a15"
 authors = [
   { name="Tamzin Hadasa Kelly", email="coding@tamz.in" },
 ]

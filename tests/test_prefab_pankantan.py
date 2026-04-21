@@ -77,5 +77,5 @@ def test_line_break2():
     assert u("ni2 li toki+pona") == "󱥁2​󱤧​󱥬󱦖󱥔​"
     assert u("ni03 li toki+pona") == "󱥁03​󱤧​󱥬󱦖󱥔​"
     assert u("ni< li toki+pona") == "󱥁04​󱤧​󱥬󱦖󱥔​"
-    assert u("this isn't toki pona") == "[SITELEN IKE: this] [SITELEN IKE: isn't] 󱥬󱥔"
+    assert u("this isn't toki pona") == "[SITELEN IKE: this] [SITELEN IKE: isn't] 󱥬​󱥔​"
     assert u("󱥬󱤧󱥔") == "󱥬​󱤧​󱥔​"
