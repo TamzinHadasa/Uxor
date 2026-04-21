@@ -1,5 +1,6 @@
 from enum import Enum
 import re
+import sys
 
 
 class UxorError(Exception): pass
@@ -52,27 +53,22 @@ class Uxor:
         """,
         flags=re.VERBOSE)
 
-    _CLI_PROMPT = "o pana e sitelen Lasina."
-    _CLI_INPUT_LINE = "> "
-    _INVALID_SEQ_MESSAGE = "[SITELEN IKE: {}]"
-
     LINE_BREAK_RES = {
-        # LineBreak.AFTER_SENTENCE: re.compile(fr".(?={OUTPUT_SENTENCE_SEPARATOR}|$)"),
         LineBreak.WHEN_UNAMBIGUOUS: re.compile(
             r"([\U000F1909\U000F190A\U000F1921\U000F1927])"),  # 󱤉󱤊󱤡󱤧
         LineBreak.AFTER_WORD_GROUP: re.compile(
-            r"""(  # Either:
-                 [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # A word glyph,
-                 (?:  # followed by either
-                  [\u200D\U000F1995\U000F1996]  # a ZWJ, stacking joiner, or scaling joiner,
-                  [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # and another word glyph
+            fr"""(  # Either:
+                  [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # A word glyph,
+                  (?:  # followed by either
+                   [\u200D\U000F1995\U000F1996]  # a ZWJ, stacking joiner, or scaling joiner,
+                   [\U000F1900-\U000F198C\U000F19A0-\U000F19BA]  # and another word glyph
+                  |  # --or--
+                   {OUT_VAR_JOINER}  # (by default) a ZWJ
+                   [0-9]+  # and one or more Arabic numerals
+                  )*  # zero to infinity times;
                  |  # --or--
-                  \u200D  # a ZWJ
-                  [0-9]+  # and one or more Arabic numerals
-                 )*  # zero to infinity times;
-                |  # --or--
-                 [\U000F1991\U000F1998]  # a cartouche end or long-glyph end.
-                )
+                  [\U000F1991\U000F1998]  # a cartouche end or long-glyph end.
+                 )
             """,
             flags=re.VERBOSE)
     }
@@ -242,15 +238,9 @@ class Uxor:
         "\n": "\n"
     }
 
-    # STACK_JOINER = "-"
-    # NEST_JOINER = "+"
-    # SPECIAL_JOINER = "&"
-    # CARTOUCHE_OPENER = "["
-    # CARTOUCHE_CONTINUER = "="
-    # CARTOUCHE_CLOSER = "]"
-    # PI_OPENER = "("
-    # PI_CONTINUER = "_"
-    # PI_CLOSER = ")"
+    _CLI_PROMPT = "o pana e sitelen Lasina."
+    _CLI_INPUT_LINE = "> "
+    _INVALID_SEQ_MESSAGE = "[SITELEN IKE: {}]"
 
     def __init__(self,
                  allow_unspaced: bool = False,
@@ -341,24 +331,17 @@ class Uxor:
 
     def get_replacement(self, sequence: str) -> list[str]:
         try:
-            base_word, inp_variant_code = (self.VAR_RE.match(sequence)
-                                           .groups())  # type: ignore[union-attr]
+            base_word, inp_var_code = (self.VAR_RE.match(sequence).groups())  # type: ignore[union-attr]
         except AttributeError as e:
             raise InvalidSequence(sequence) from e
-        else:
-            base_word: str
-            inp_variant_code: str
         try:
             base_glyph = self.BASE_WORD_REPLS[base_word]
         except KeyError as e:
             raise UnresolvedSequence(sequence) from e
-        if not self.ignore_variants and inp_variant_code:
-            out_variant_code = self.DIR_VAR_REPLS.get(
-                inp_variant_code, inp_variant_code)
-            variant_suffix = self.OUT_VAR_JOINER + out_variant_code
-        else:
-            variant_suffix = ""
-        return [base_glyph + variant_suffix]
+        var_suffix = ((self.OUT_VAR_JOINER
+                       + self.DIR_VAR_REPLS.get(inp_var_code, inp_var_code))
+                      if not self.ignore_variants and inp_var_code else "")
+        return [base_glyph + var_suffix]
 
     def compile(self, sequences: list[str]) -> str:
         joined = "".join(sequences)
@@ -366,10 +349,10 @@ class Uxor:
                   if self.line_break_regex else joined)
         return spaced
 
-    def cli(self, text: str = "") -> None:
-        if text:
-            print(self(text))
-        else:
+    def cli(self) -> None:
+        try:
+            print(self(sys.argv[1]))
+        except IndexError:
             print(self._CLI_PROMPT)
             while True:
                 print(self(input(self._CLI_INPUT_LINE)))

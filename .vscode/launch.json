@@ -17,6 +17,13 @@
             "request": "launch",
             "program": "src/uxor/main.py",
             "args": ["toki li pona", "--line_break=WHEN_UNAMBIGUOUS"]
+        },
+        {
+            "name": "test script",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "C:\\Users\\tkinf\\Documents\\uxor\\.test_script.py",
+            "args": []
         }
     ]
 }
